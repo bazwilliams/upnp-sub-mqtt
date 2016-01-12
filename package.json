@@ -3,11 +3,16 @@
   "version": "0.1.0",
   "description": "Upnp Subscription to MQTT bridge",
   "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bazwilliams/upnp-sub-mqtt.git"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "barry@bjw.me.uk <Barry John Williams>",
+  "author": "Barry John Williams <barry@bjw.me.uk>",
   "license": "MIT",
+  "keywords": ["mqtt", "upnp", "subscription", "iot", "event"],
   "dependencies": {
     "async": "^1.5.2",
     "mqtt": "^1.6.3",
