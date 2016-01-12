@@ -15,6 +15,8 @@ upnp-sub-mqtt
 
 Currently assumes you have an MQTT broker running at `mqtt://openwrt`.
 
+Upnp events will be published to `upnp/event`. 
+
 ## TODO
 
 [ ] Make broker host a configuration option
