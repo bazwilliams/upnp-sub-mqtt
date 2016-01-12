@@ -1,0 +1,19 @@
+{
+  "name": "upnp-subscribe",
+  "version": "0.1.0",
+  "description": "Upnp Subscription to MQTT bridge",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "barry@bjw.me.uk <Barry John Williams>",
+  "license": "MIT",
+  "dependencies": {
+    "async": "^1.5.2",
+    "mqtt": "^1.6.3",
+    "node-upnp-ssdp": "^0.1.1",
+    "node-upnp-subscription": "0.0.2",
+    "parsexmlresponse": "0.0.3",
+    "xml2js": "^0.4.15"
+  }
+}
