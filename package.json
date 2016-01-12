@@ -1,6 +1,6 @@
 {
   "name": "upnp-subscribe",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Upnp Subscription to MQTT bridge",
   "main": "index.js",
   "repository": {
@@ -12,7 +12,13 @@
   },
   "author": "Barry John Williams <barry@bjw.me.uk>",
   "license": "MIT",
-  "keywords": ["mqtt", "upnp", "subscription", "iot", "event"],
+  "keywords": [
+    "mqtt",
+    "upnp",
+    "subscription",
+    "iot",
+    "event"
+  ],
   "dependencies": {
     "async": "^1.5.2",
     "mqtt": "^1.6.3",
