@@ -1,3 +1,5 @@
+#!/usr/bin/env node 
+
 "use strict";
 
 let ssdp = require('node-upnp-ssdp');
@@ -50,7 +52,7 @@ function process(device) {
           console.error(`${device.server}: returned no data`)
       }
     })).on('error', (e) => {
-        console.error(`${device}: ${e}`);
+        console.error(`${device.server}: ${e}`);
     });
   }
 }
