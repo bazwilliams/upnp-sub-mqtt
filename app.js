@@ -9,7 +9,8 @@ let url = require('url');
 let mqtt = require('mqtt');
 let async = require('async');
 
-let cache = new Map();
+let devices = new Map();
+let subscriptionQueue = [];
 let client = mqtt.connect('mqtt://openwrt');
 
 function announceMessageFor(device) {
@@ -23,72 +24,113 @@ function subscribe(path, device, callback) {
     let eventUrl = url.parse(path);
     let sub = new Subscription(eventUrl.hostname, eventUrl.port, eventUrl.path);
     sub.on('message', announceMessageFor(device));
-    sub.on('error', (e) => { console.error(`${device.friendlyName} ${e}`); });
-    sub.on('subscribed', (data) => { callback(null, data); });
+    sub.on('error:unsubscribe', (e) => { console.error(`${device.friendlyName} ${e}`) });
+    sub.on('error:resubscribe', (e) => { console.error(`${device.friendlyName} ${e}`) });
+    sub.on('error:subscribe', callback);
+    sub.on('subscribed', (data) => { callback(null, sub); });
 }
 
-function subscribeAll(usn) {
-    //console.log('subscribing to:');
-    //console.log(cache.get(usn));
+function subscribeAll(usn, callback) {
+    let device = devices.get(usn);
+    async.eachSeries(Array.from(device.subscriptions.keys()), (path, iterCallback) => {
+        subscribe(path, device, (err, subscription) => {
+            if (err) {
+                console.error(`Failed to setup subscription to ${path}`);
+                iterCallback(err);
+            } else {
+                devices.get(usn).subscriptions.set(path, subscription);
+                iterCallback();
+            }
+        });
+    }, callback);
 }
 
-function unSubscribeAll(usn) {
-//    console.log('unsubscribing from:');
-//    console.log(cache.get(usn));
+function unsubscribeAll(usn, callback) {
+    let device = devices.get(usn);
+    async.eachSeries(Array.from(device.subscriptions.values()), (subscription, iterCallback) => {
+        subscription.unsubscribe();
+        subscription.on('unsubscribe', iterCallback);
+    }, callback);
 }
 
 function populateSubscriptions(device, location, usn) {
-    //console.log(`${device.friendlyName} at ${location}`);
     if (device.serviceList && device.serviceList.service) {
         if (Array.isArray(device.serviceList.service)) {
             for (let service of device.serviceList.service) {
                 if (service.eventSubURL) {
                     let path = url.resolve(location, service.eventSubURL);
-                    cache.get(usn).set(path, {});
+                    devices.get(usn).subscriptions.set(path, {});
                 }
             }
         } else {
             if (device.serviceList.service.eventSubURL) {
                 let path = url.resolve(location, device.serviceList.service.eventSubURL);
-                cache.get(usn).set(path, {});
+                devices.get(usn).subscriptions.set(path, {});
             }
         }
     }
 }
 
-function unprocess(device) {
-    if (cache.has(device.usn)) {
-        unSubscribeAll(device.usn);
-        cache.delete(device.usn);
+function unprocess(discovery) {
+    if (devices.has(discovery.usn)) {
+        unsubscribeAll(discovery.usn);
+        devices.delete(discovery.usn);
     }
 }
 
-function process(device) {
-    if (!cache.has(device.usn)) {
-        cache.set(device.usn, new Map());
-        http.get(device.location, parsexmlresponse((err, data) => {
+function process(discovery, callback) {
+    if (!devices.has(discovery.usn)) {
+        devices.set(discovery.usn, { description: null, subscriptions: new Map() });
+        http.get(discovery.location, parsexmlresponse((err, data) => {
             if (err) {
-                console.error(`${device.server}@${device.location} [${device.usn}]: ${err}`);
-                cache.delete(device.usn);
+                console.error(`${discovery.server}@${discovery.location} [${discovery.usn}]: ${err}`);
+                devices.delete(discovery.usn);
+                callback(err);
             } else if (data) {
-                populateSubscriptions(data.root.device, device.location, device.usn);
-                subscribeAll(device.usn);
+                devices.get(discovery.usn).description = data.root.device;
+                populateSubscriptions(devices.get(discovery.usn).description, discovery.location, discovery.usn);
+                subscribeAll(discovery.usn, callback);
             } else {
-                console.error(`${device.server}: returned no data`)
+                callback(new Error(`${discovery.server}: returned no data`));
             }
         })).on('error', (err) => {
-            console.error(`${device.server}@${device.location} [${device.usn}]: ${err}`);
-            cache.delete(device.usn);
+            console.error(`${discovery.server}@${discovery.location} [${discovery.usn}]: ${err}`);
+            devices.delete(discovery.usn);
+            callback(err);
         });
+    } else {
+        callback();
     }
 }
 
-ssdp.on('DeviceFound', process);
-ssdp.on('DeviceAvailable', process);
-ssdp.on('DeviceUpdate', (device) => {
-    unprocess(device);
-    process(device);
+function processQueue() {
+    let discoveredDevice = subscriptionQueue.shift();
+    if (discoveredDevice) {
+        process(discoveredDevice, (err, data) => {
+            if (err) {
+                console.error(err);
+            }
+            processQueue();
+        });
+    } else {
+        setTimeout(processQueue, 1000);
+    }
+}
+
+setTimeout(processQueue, 1000);
+
+ssdp.on('DeviceFound', (discovery) => {
+    subscriptionQueue.push(discovery)
 });
-ssdp.on('DeviceUnavailable', unprocess);
+ssdp.on('DeviceAvailable', (discovery) => {
+    subscriptionQueue.push(discovery)
+});
+ssdp.on('DeviceUpdate', (discovery) => {
+    unprocess(discovery, (err) => console.error(err));
+    process(discovery, (err) => console.error(err));
+});
+ssdp.on('DeviceUnavailable', (discovery) => {
+    unprocess(discovery, (err) => console.error(err));
+});
 
 ssdp.mSearch();
