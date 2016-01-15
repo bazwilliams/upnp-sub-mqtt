@@ -10,13 +10,15 @@ let mqtt = require('mqtt');
 let async = require('async');
 
 let devices = new Map();
+let processed = new Set();
 let subscriptionQueue = [];
 let client = mqtt.connect('mqtt://openwrt');
 
 function announceMessageFor(device) {
     return (message) => {
-        let msg = JSON.stringify({ body: { device, message: message } });
-        client.publish('upnp/event', msg);
+        let body = message['e:propertyset'] ? message['e:propertyset']['e:property'] : message;
+        let msg = JSON.stringify({ body });
+        client.publish(`upnp/${device.description.UDN}/event`, msg);
     };
 }
 
@@ -79,15 +81,15 @@ function unprocess(discovery) {
 }
 
 function process(discovery, callback) {
-    if (!devices.has(discovery.usn)) {
-        devices.set(discovery.usn, { description: null, subscriptions: new Map() });
+    if (!processed.has(discovery.location)) {
+        processed.add(discovery.location);
         http.get(discovery.location, parsexmlresponse((err, data) => {
             if (err) {
                 console.error(`${discovery.server}@${discovery.location} [${discovery.usn}]: ${err}`);
-                devices.delete(discovery.usn);
+                processed.delete(discovery.location);
                 callback(err);
             } else if (data) {
-                devices.get(discovery.usn).description = data.root.device;
+                devices.set(discovery.usn, { description: data.root.device, subscriptions: new Map() });
                 populateSubscriptions(devices.get(discovery.usn).description, discovery.location, discovery.usn);
                 subscribeAll(discovery.usn, callback);
             } else {
@@ -95,7 +97,7 @@ function process(discovery, callback) {
             }
         })).on('error', (err) => {
             console.error(`${discovery.server}@${discovery.location} [${discovery.usn}]: ${err}`);
-            devices.delete(discovery.usn);
+            processed.delete(discovery.location);
             callback(err);
         });
     } else {
