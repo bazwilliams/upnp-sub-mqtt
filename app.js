@@ -14,33 +14,36 @@ let processed = new Set();
 let subscriptionQueue = [];
 let client = mqtt.connect('mqtt://openwrt');
 
-function announceMessageFor(device) {
+function announceMessageFor(usn) {
+    let device = devices.get(usn);
     return (message) => {
-        let body = message['e:propertyset'] ? message['e:propertyset']['e:property'] : message;
+        let serviceId = devices.get(usn).subscriptions.get(message.sid);
+        let body = message['body'] ? message['body'] : message;
+        body = body['e:propertyset'] ? body['e:propertyset']['e:property'] : body;
+        body.serviceId = serviceId;
         let msg = JSON.stringify({ body });
         client.publish(`upnp/${device.description.UDN}/event`, msg);
     };
 }
 
-function subscribe(path, device, callback) {
+function subscribe(path, usn, callback) {
     let eventUrl = url.parse(path);
     let sub = new Subscription(eventUrl.hostname, eventUrl.port, eventUrl.path);
-    sub.on('message', announceMessageFor(device));
+    sub.on('message', announceMessageFor(usn));
     sub.on('error:unsubscribe', (e) => { console.error(`${device.friendlyName} ${e}`) });
     sub.on('error:resubscribe', (e) => { console.error(`${device.friendlyName} ${e}`) });
     sub.on('error:subscribe', callback);
-    sub.on('subscribed', (data) => { callback(null, sub); });
+    sub.on('subscribed', (data) => { callback(null, { sid: data.sid, subsription: sub }) });
 }
 
-function subscribeAll(usn, callback) {
-    let device = devices.get(usn);
-    async.eachSeries(Array.from(device.subscriptions.keys()), (path, iterCallback) => {
-        subscribe(path, device, (err, subscription) => {
+function subscribeAll(usn, services, callback) {
+    async.eachSeries(services, (service, iterCallback) => {
+        subscribe(service.path, usn, (err, data) => {
             if (err) {
                 console.error(`Failed to setup subscription to ${path}`);
                 iterCallback(err);
             } else {
-                devices.get(usn).subscriptions.set(path, subscription);
+                devices.get(usn).subscriptions.set(data.sid, { serviceId: service.serviceId, subscription: data.subscription });
                 iterCallback();
             }
         });
@@ -50,27 +53,31 @@ function subscribeAll(usn, callback) {
 function unsubscribeAll(usn, callback) {
     let device = devices.get(usn);
     async.eachSeries(Array.from(device.subscriptions.values()), (subscription, iterCallback) => {
-        subscription.unsubscribe();
-        subscription.on('unsubscribe', iterCallback);
+        subscription.subscription.unsubscribe();
+        subscription.subscription.on('unsubscribe', iterCallback);
     }, callback);
 }
 
-function populateSubscriptions(device, location, usn) {
+function findServices(device, location) {
+    let services = [];
     if (device.serviceList && device.serviceList.service) {
         if (Array.isArray(device.serviceList.service)) {
             for (let service of device.serviceList.service) {
                 if (service.eventSubURL) {
                     let path = url.resolve(location, service.eventSubURL);
-                    devices.get(usn).subscriptions.set(path, {});
+                    let serviceId = service.serviceId;
+                    services.push({ serviceId, path });
                 }
             }
         } else {
             if (device.serviceList.service.eventSubURL) {
                 let path = url.resolve(location, device.serviceList.service.eventSubURL);
-                devices.get(usn).subscriptions.set(path, {});
+                let serviceId = service.serviceId;
+                services.push({ serviceId, path });
             }
         }
     }
+    return services;
 }
 
 function unprocess(discovery) {
@@ -90,8 +97,8 @@ function process(discovery, callback) {
                 callback(err);
             } else if (data) {
                 devices.set(discovery.usn, { description: data.root.device, subscriptions: new Map() });
-                populateSubscriptions(devices.get(discovery.usn).description, discovery.location, discovery.usn);
-                subscribeAll(discovery.usn, callback);
+                let services = findServices(devices.get(discovery.usn).description, discovery.location, discovery.usn);
+                subscribeAll(discovery.usn, services, callback);
             } else {
                 callback(new Error(`${discovery.server}: returned no data`));
             }
