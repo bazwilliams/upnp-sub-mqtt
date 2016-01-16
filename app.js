@@ -14,26 +14,42 @@ let processed = new Set();
 let subscriptionQueue = [];
 let client = mqtt.connect('mqtt://openwrt');
 
+function kvToObject(arr) {
+    return arr.reduce((memo, val) => {
+        memo[Object.keys(val)[0]] = val[Object.keys(val)[0]];
+        return memo;
+    }, {});
+}
+
+function extractProperties(message) {
+    let properties = message['body'] ? message['body'] : message;
+    properties = properties['e:propertyset'] ? properties['e:propertyset']['e:property'] : properties;
+    if (Array.isArray(properties)) {
+        return kvToObject(properties);
+    } else {
+        return properties;
+    }
+}
+
 function announceMessageFor(usn) {
     let device = devices.get(usn);
     return (message) => {
-        let serviceId = devices.get(usn).subscriptions.get(message.sid);
-        let body = message['body'] ? message['body'] : message;
-        body = body['e:propertyset'] ? body['e:propertyset']['e:property'] : body;
-        body.serviceId = serviceId;
-        let msg = JSON.stringify({ body });
-        client.publish(`upnp/${device.description.UDN}/event`, msg);
+        let service = devices.get(usn).subscriptions.get(message.sid);
+        if (!service) {
+            console.error('No service known for message');
+        }
+        let msg = JSON.stringify({ body: extractProperties(message) });
+        client.publish(`upnp/${device.description.UDN}/${service.serviceId}`, msg);
     };
 }
 
 function subscribe(path, usn, callback) {
     let eventUrl = url.parse(path);
     let sub = new Subscription(eventUrl.hostname, eventUrl.port, eventUrl.path);
-    sub.on('message', announceMessageFor(usn));
-    sub.on('error:unsubscribe', (e) => { console.error(`${device.friendlyName} ${e}`) });
-    sub.on('error:resubscribe', (e) => { console.error(`${device.friendlyName} ${e}`) });
     sub.on('error:subscribe', callback);
-    sub.on('subscribed', (data) => { callback(null, { sid: data.sid, subsription: sub }) });
+    sub.on('error:resubscribe', (e) => { console.error(`${device.friendlyName} ${e}`) });
+    sub.on('subscribed', (data) => { callback(null, { sid: data.sid, subscription: sub }) });
+    sub.on('message', announceMessageFor(usn));
 }
 
 function subscribeAll(usn, services, callback) {
@@ -52,38 +68,44 @@ function subscribeAll(usn, services, callback) {
 
 function unsubscribeAll(usn, callback) {
     let device = devices.get(usn);
-    async.eachSeries(Array.from(device.subscriptions.values()), (subscription, iterCallback) => {
-        subscription.subscription.unsubscribe();
+    async.eachSeries(Array.from(device.subscriptions.keys()), (sid, iterCallback) => {
+        let subscription = device.subscriptions.get(sid);
+        console.log(`Unsubscribing ${sid} (${subscription.serviceId})`);
         subscription.subscription.on('unsubscribe', iterCallback);
+        subscription.subscription.unsubscribe();
     }, callback);
 }
 
 function findServices(device, location) {
     let services = [];
+    function addService(service) {
+        if (service.eventSubURL) {
+            let path = url.resolve(location, service.eventSubURL);
+            let serviceId = service.serviceId;
+            services.push({ serviceId, path });
+        }
+    }
     if (device.serviceList && device.serviceList.service) {
         if (Array.isArray(device.serviceList.service)) {
             for (let service of device.serviceList.service) {
-                if (service.eventSubURL) {
-                    let path = url.resolve(location, service.eventSubURL);
-                    let serviceId = service.serviceId;
-                    services.push({ serviceId, path });
-                }
+                addService(service);
             }
         } else {
-            if (device.serviceList.service.eventSubURL) {
-                let path = url.resolve(location, device.serviceList.service.eventSubURL);
-                let serviceId = service.serviceId;
-                services.push({ serviceId, path });
-            }
+            addService(device.serviceList.service);
         }
     }
     return services;
 }
 
-function unprocess(discovery) {
-    if (devices.has(discovery.usn)) {
-        unsubscribeAll(discovery.usn);
-        devices.delete(discovery.usn);
+function unprocess(usn) {
+    if (devices.has(usn)) {
+        unsubscribeAll(usn, (err, data) => {
+            if (err) {
+                console.error(err);
+            } else {
+                devices.delete(usn)
+            }
+        });
     }
 }
 
@@ -135,11 +157,11 @@ ssdp.on('DeviceAvailable', (discovery) => {
     subscriptionQueue.push(discovery)
 });
 ssdp.on('DeviceUpdate', (discovery) => {
-    unprocess(discovery, (err) => console.error(err));
+    unprocess(discovery.usn, (err) => console.error(err));
     process(discovery, (err) => console.error(err));
 });
 ssdp.on('DeviceUnavailable', (discovery) => {
-    unprocess(discovery, (err) => console.error(err));
+    unprocess(discovery.usn, (err) => console.error(err));
 });
 
 ssdp.mSearch();
