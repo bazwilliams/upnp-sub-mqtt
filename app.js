@@ -50,7 +50,7 @@ function subscribe(path, usn, callback) {
     let eventUrl = url.parse(path);
     let sub = new Subscription(eventUrl.hostname, eventUrl.port, eventUrl.path);
     let deviceDescription = devices.get(usn).description;
-    sub.on('error:subscribe', callback);
+    sub.on('error', callback);
     sub.on('subscribed', (data) => {
         if (!data.sid) {
             callback(new Error(`Received no sid for subscription to ${path}`));
