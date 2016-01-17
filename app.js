@@ -143,7 +143,8 @@ function processDiscovery(discovery, callback) {
                 let services = findServices(devices.get(discovery.usn).description, discovery.location, discovery.usn);
                 subscribeAll(discovery.usn, services, callback);
             } else {
-                callback(new Error(`Failed to download description of ${discovery.server}: returned no data`));
+                console.error(new Error(`Failed to download description of ${discovery.server}: returned no data`));
+                callback();
             }
         })).on('error', (err) => {
             console.error(`${discovery.server}@${discovery.location} [${discovery.usn}]: ${err}`);
@@ -160,6 +161,7 @@ function processQueue() {
     if (discoveredDevice) {
         processDiscovery(discoveredDevice, (err, data) => {
             if (err) {
+                console.error(err);
                 console.log('Rolling back subscriptions');
                 unprocess(discoveredDevice.usn, (err, data) => {
                     subscriptionQueue.push(discoveredDevice);
