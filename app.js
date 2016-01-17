@@ -84,10 +84,19 @@ function unsubscribeAll(usn, callback) {
     async.eachSeries(Array.from(device.subscriptions.keys()), (sid, iterCallback) => {
         let subscription = device.subscriptions.get(sid);
         console.log(`Unsubscribing ${sid} (${subscription.serviceId})`);
-        subscription.subscription.on('unsubscribe', (data) => iterCallback());
+        let callbackInvoked = false;
+        subscription.subscription.on('unsubscribe', (data) => {
+            if (!callbackInvoked) {
+                callbackInvoked = true;
+                iterCallback();
+            }
+        });
         subscription.subscription.on('error:unsubscribe', (err) => {
-            console.error(err);
-            iterCallback();
+            if (!callbackInvoked) {
+                callbackInvoked = true;
+                console.error(err);
+                iterCallback();
+            }
         });
         subscription.subscription.unsubscribe();
     }, callback);
@@ -133,6 +142,8 @@ function unprocess(usn, callback) {
                 callback();
             }
         });
+    } else {
+        callback();
     }
 }
 
