@@ -1,4 +1,5 @@
 # upnp-sub-mqtt
+
 Scans for Upnp devices, subscribes to any events and publishes the events to an MQTT broker
 
 ## Install
@@ -10,13 +11,14 @@ npm install -g upnp-sub-mqtt
 ## Run
 
 ```
-upnp-sub-mqtt
+upnp-sub-mqtt -u <brokerURL>
 ```
 
-Currently assumes you have an MQTT broker running at `mqtt://openwrt`.
+### Options
 
-Upnp events will be published to `upnp/event`. 
+* `-v` Version
+* `-u` `--url` URL of broker, defaults to `mqtt://localhost`
 
-## TODO
+## Message Output
 
-[ ] Make broker host a configuration option
+Upnp events will be published to `upnp/${usn}/${serviceId}`.

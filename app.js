@@ -12,7 +12,13 @@ let async = require('async');
 let devices = new Map();
 let processed = new Set();
 let subscriptionQueue = [];
-let client = mqtt.connect('mqtt://openwrt');
+
+let program = require('commander');
+
+program
+    .version(require('./package.json').version)
+    .option('-u, --url <url>', 'Set the URI of the broker [mqtt://localhost]')
+    .parse(process.argv);
 
 function kvToObject(arr) {
     return arr.reduce((memo, val) => {
@@ -176,8 +182,23 @@ function processQueue() {
     }
 }
 
+function unsubscribeAllDevices() {
+    for(let usn of devices.keys()) {
+        unsubscribeAllSync(usn);
+    }
+    process.exit();
+}
 
-setTimeout(processQueue, 1000);
+function handleException(e) {
+    console.error(e.stack);
+    unsubscribeAllDevices();
+}
+
+process.stdin.resume();//so the program will not close instantly
+
+process.on('exit', unsubscribeAllDevices);
+process.on('SIGINT', unsubscribeAllDevices);
+process.on('uncaughtException', handleException);
 
 ssdp.on('DeviceFound', (discovery) => {
     subscriptionQueue.push(discovery)
@@ -193,22 +214,17 @@ ssdp.on('DeviceUnavailable', (discovery) => {
     unprocess(discovery.usn, (err) => console.error(err));
 });
 
-function unsubscribeAllDevices() {
-    for(let usn of devices.keys()) {
-        unsubscribeAllSync(usn);
+let client = mqtt.connect(program.url || 'mqtt://localhost');
+console.log(`Connecting: ${client.options.href}`);
+
+client.on('connect', (connack) => {
+    console.log('Connected');
+    if (!connack.sessionPresent) {
+        setTimeout(processQueue, 1000);
+        ssdp.mSearch();
     }
-    process.exit();
-}
+});
 
-process.stdin.resume();//so the program will not close instantly
-
-function handleException(e) {
-    console.error(e.stack);
-    unsubscribeAllDevices();
-}
-
-process.on('exit', unsubscribeAllDevices);
-process.on('SIGINT', unsubscribeAllDevices);
-process.on('uncaughtException', handleException);
-
-ssdp.mSearch();
+client.on('error', (err) => {
+    console.error(err);
+})

@@ -24,6 +24,7 @@
   ],
   "dependencies": {
     "async": "^1.5.2",
+    "commander": "^2.9.0",
     "mqtt": "^1.6.3",
     "node-upnp-ssdp": "^0.1.1",
     "node-upnp-subscription": "^0.4.0",
