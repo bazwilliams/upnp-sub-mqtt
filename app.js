@@ -79,7 +79,7 @@ function unsubscribeAll(usn, callback) {
         let subscription = device.subscriptions.get(sid);
         console.log(`Unsubscribing ${sid} (${subscription.serviceId})`);
         subscription.subscription.on('unsubscribe', (data) => iterCallback(null, data));
-        subscription.subscription.on('error', (err) => console.error(err));
+        subscription.subscription.on('error:unsubscribe', (err) => console.error(err));
         subscription.subscription.unsubscribe();
     }, callback);
 }
