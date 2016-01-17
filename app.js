@@ -68,12 +68,22 @@ function subscribeAll(usn, services, callback) {
 
 function unsubscribeAll(usn, callback) {
     let device = devices.get(usn);
-    async.eachSeries(Array.from(device.subscriptions.keys()), (sid, iterCallback) => {
+    async.eachSeries(Array.from(device.subscriptions.keys()), (val, iterCallback) => {
         let subscription = device.subscriptions.get(sid);
         console.log(`Unsubscribing ${sid} (${subscription.serviceId})`);
-        subscription.subscription.on('unsubscribe', iterCallback);
+        subscription.subscription.on('unsubscribe', (data) => iterCallback(null, data));
+        subscription.subscription.on('error:resubscribe', (e) => iterCallback(e));
         subscription.subscription.unsubscribe();
     }, callback);
+}
+
+function unsubscribeAllSync(usn) {
+    let device = devices.get(usn);
+    for (let sid of device.subscriptions.keys()) {
+        let subscription = device.subscriptions.get(sid);
+        console.log(`Unsubscribing ${sid} (${subscription.serviceId})`);
+        subscription.subscription.unsubscribe();
+    }
 }
 
 function findServices(device, location) {
@@ -109,7 +119,7 @@ function unprocess(usn) {
     }
 }
 
-function process(discovery, callback) {
+function processDiscovery(discovery, callback) {
     if (!processed.has(discovery.location)) {
         processed.add(discovery.location);
         http.get(discovery.location, parsexmlresponse((err, data) => {
@@ -137,7 +147,7 @@ function process(discovery, callback) {
 function processQueue() {
     let discoveredDevice = subscriptionQueue.shift();
     if (discoveredDevice) {
-        process(discoveredDevice, (err, data) => {
+        processDiscovery(discoveredDevice, (err, data) => {
             if (err) {
                 console.error(err);
             }
@@ -158,10 +168,23 @@ ssdp.on('DeviceAvailable', (discovery) => {
 });
 ssdp.on('DeviceUpdate', (discovery) => {
     unprocess(discovery.usn, (err) => console.error(err));
-    process(discovery, (err) => console.error(err));
+    processDiscovery(discovery, (err) => console.error(err));
 });
 ssdp.on('DeviceUnavailable', (discovery) => {
     unprocess(discovery.usn, (err) => console.error(err));
 });
+
+function unsubscribeAllDevices() {
+    for(let usn of devices.keys()) {
+        unsubscribeAllSync(usn);
+    }
+    process.exit();
+}
+
+process.stdin.resume();//so the program will not close instantly
+
+process.on('exit', unsubscribeAllDevices);
+process.on('SIGINT', unsubscribeAllDevices);
+process.on('uncaughtException', unsubscribeAllDevices);
 
 ssdp.mSearch();
