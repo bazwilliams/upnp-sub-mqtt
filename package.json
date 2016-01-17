@@ -1,6 +1,6 @@
 {
   "name": "upnp-sub-mqtt",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Upnp Subscription to MQTT bridge",
   "main": "app.js",
   "repository": {
