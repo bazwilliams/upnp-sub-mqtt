@@ -27,7 +27,7 @@
     "commander": "^2.9.0",
     "mqtt": "^1.6.3",
     "node-upnp-ssdp": "^0.1.1",
-    "node-upnp-subscription": "^0.4.0",
+    "node-upnp-subscription": "^1.0.0",
     "parsexmlresponse": "0.0.3",
     "xml2js": "^0.4.15"
   }
