@@ -78,8 +78,11 @@ function unsubscribeAll(usn, callback) {
     async.eachSeries(Array.from(device.subscriptions.keys()), (sid, iterCallback) => {
         let subscription = device.subscriptions.get(sid);
         console.log(`Unsubscribing ${sid} (${subscription.serviceId})`);
-        subscription.subscription.on('unsubscribe', (data) => iterCallback(null, data));
-        subscription.subscription.on('error:unsubscribe', (err) => console.error(err));
+        subscription.subscription.on('unsubscribe', (data) => iterCallback());
+        subscription.subscription.on('error:unsubscribe', (err) => {
+            console.error(err);
+            iterCallback();
+        });
         subscription.subscription.unsubscribe();
     }, callback);
 }
@@ -157,14 +160,20 @@ function processQueue() {
     if (discoveredDevice) {
         processDiscovery(discoveredDevice, (err, data) => {
             if (err) {
-                console.error(err);
+                console.log('Rolling back subscriptions');
+                unprocess(discoveredDevice.usn, (err, data) => {
+                    subscriptionQueue.push(discoveredDevice);
+                    processQueue();
+                });
+            } else {
+                processQueue();
             }
-            processQueue();
         });
     } else {
         setTimeout(processQueue, 1000);
     }
 }
+
 
 setTimeout(processQueue, 1000);
 
