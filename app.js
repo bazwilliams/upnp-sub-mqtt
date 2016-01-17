@@ -31,13 +31,10 @@ function extractProperties(message) {
     }
 }
 
-function announceMessageFor(usn) {
+function announceMessageFor(usn, sid) {
     let device = devices.get(usn);
     return (message) => {
-        let service = devices.get(usn).subscriptions.get(message.sid);
-        if (!service) {
-            console.error('No service known for message');
-        }
+        let service = device.subscriptions.get(sid);
         let msg = JSON.stringify({ body: extractProperties(message) });
         client.publish(`upnp/${device.description.UDN}/${service.serviceId}`, msg);
     };
@@ -46,17 +43,27 @@ function announceMessageFor(usn) {
 function subscribe(path, usn, callback) {
     let eventUrl = url.parse(path);
     let sub = new Subscription(eventUrl.hostname, eventUrl.port, eventUrl.path);
+    let deviceDescription = devices.get(usn).description;
     sub.on('error:subscribe', callback);
-    sub.on('error:resubscribe', (e) => { console.error(`${device.friendlyName} ${e}`) });
-    sub.on('subscribed', (data) => { callback(null, { sid: data.sid, subscription: sub }) });
-    sub.on('message', announceMessageFor(usn));
+    sub.on('subscribed', (data) => {
+        if (!data.sid) {
+            callback(new Error(`Received no sid for subscription to ${path}`));
+        } else {
+            sub.on('message', announceMessageFor(usn, data.sid));
+            sub.on('error:resubscribe', (e) => {
+                console.error(`${deviceDescription.friendlyName} ${e}`)
+            });
+            callback(null, {sid: data.sid, subscription: sub});
+        }
+    });
 }
 
 function subscribeAll(usn, services, callback) {
     async.eachSeries(services, (service, iterCallback) => {
+        console.log(`Subscribing ${usn} (${service.serviceId})`);
         subscribe(service.path, usn, (err, data) => {
             if (err) {
-                console.error(`Failed to setup subscription to ${path}`);
+                console.error(`Failed to setup subscription to ${service.path}`);
                 iterCallback(err);
             } else {
                 devices.get(usn).subscriptions.set(data.sid, { serviceId: service.serviceId, subscription: data.subscription });
@@ -68,11 +75,11 @@ function subscribeAll(usn, services, callback) {
 
 function unsubscribeAll(usn, callback) {
     let device = devices.get(usn);
-    async.eachSeries(Array.from(device.subscriptions.keys()), (val, iterCallback) => {
+    async.eachSeries(Array.from(device.subscriptions.keys()), (sid, iterCallback) => {
         let subscription = device.subscriptions.get(sid);
         console.log(`Unsubscribing ${sid} (${subscription.serviceId})`);
         subscription.subscription.on('unsubscribe', (data) => iterCallback(null, data));
-        subscription.subscription.on('error:resubscribe', (e) => iterCallback(e));
+        subscription.subscription.on('error', (err) => console.error(err));
         subscription.subscription.unsubscribe();
     }, callback);
 }
@@ -107,13 +114,14 @@ function findServices(device, location) {
     return services;
 }
 
-function unprocess(usn) {
+function unprocess(usn, callback) {
     if (devices.has(usn)) {
         unsubscribeAll(usn, (err, data) => {
             if (err) {
-                console.error(err);
+                callback(err);
             } else {
-                devices.delete(usn)
+                devices.delete(usn);
+                callback();
             }
         });
     }
@@ -132,7 +140,7 @@ function processDiscovery(discovery, callback) {
                 let services = findServices(devices.get(discovery.usn).description, discovery.location, discovery.usn);
                 subscribeAll(discovery.usn, services, callback);
             } else {
-                callback(new Error(`${discovery.server}: returned no data`));
+                callback(new Error(`Failed to download description of ${discovery.server}: returned no data`));
             }
         })).on('error', (err) => {
             console.error(`${discovery.server}@${discovery.location} [${discovery.usn}]: ${err}`);
@@ -183,8 +191,13 @@ function unsubscribeAllDevices() {
 
 process.stdin.resume();//so the program will not close instantly
 
+function handleException(e) {
+    console.error(e.stack);
+    unsubscribeAllDevices();
+}
+
 process.on('exit', unsubscribeAllDevices);
 process.on('SIGINT', unsubscribeAllDevices);
-process.on('uncaughtException', unsubscribeAllDevices);
+process.on('uncaughtException', handleException);
 
 ssdp.mSearch();
