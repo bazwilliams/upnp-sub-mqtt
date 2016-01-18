@@ -85,7 +85,7 @@ function unsubscribeAll(usn, callback) {
         let subscription = device.subscriptions.get(sid);
         console.log(`Unsubscribing ${sid} (${subscription.serviceId})`);
         let callbackInvoked = false;
-        subscription.subscription.on('unsubscribe', (data) => {
+        subscription.subscription.on('unsubscribed', (data) => {
             if (!callbackInvoked) {
                 callbackInvoked = true;
                 iterCallback();
