@@ -41,7 +41,7 @@ function announceMessageFor(usn, sid) {
     let device = devices.get(usn);
     return (message) => {
         let service = device.subscriptions.get(sid);
-        let msg = JSON.stringify({ body: extractProperties(message) });
+        let msg = JSON.stringify(extractProperties(message));
         client.publish(`upnp/${device.description.UDN}/${service.serviceId}`, msg);
     };
 }
