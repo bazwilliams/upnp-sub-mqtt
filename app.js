@@ -160,9 +160,14 @@ function processDiscovery(discovery, callback) {
                 processed.delete(discovery.location);
                 callback(err);
             } else if (data) {
-                devices.set(discovery.usn, { description: data.root.device, subscriptions: new Map() });
-                let services = findServices(devices.get(discovery.usn).description, discovery.location, discovery.usn);
-                subscribeAll(discovery.usn, services, callback);
+                if (data.root) {
+                    devices.set(discovery.usn, { description: data.root.device, subscriptions: new Map() });
+                    let services = findServices(devices.get(discovery.usn).description, discovery.location, discovery.usn);
+                    subscribeAll(discovery.usn, services, callback);
+                } else {
+                    console.error(new Error(`Failed to parse description of ${discovery.server} at ${discovery.location}`));
+					callback();
+                }
             } else {
                 console.error(new Error(`Failed to download description of ${discovery.server}: returned no data`));
                 callback();
