@@ -94,7 +94,11 @@ function unsubscribeAll(usn, callback) {
         subscription.subscription.on('error:unsubscribe', (err) => {
             if (!callbackInvoked) {
                 callbackInvoked = true;
-                console.error(err);
+                if (err) {
+                    console.error(err);
+                } else {
+                    console.error(`Unknown error unsubscribing from ${sid} (${subscription.serviceId})`);
+                }
                 iterCallback();
             }
         });
@@ -204,6 +208,8 @@ function handleException(e) {
     console.error(e.stack);
     unsubscribeAllDevices();
 }
+
+process.title = 'upnp-sub-mqtt';
 
 process.stdin.resume();//so the program will not close instantly
 
