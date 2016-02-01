@@ -46,6 +46,20 @@ function announceMessageFor(usn, sid) {
     };
 }
 
+function announceDiscovery(device) {
+    let msg = JSON.stringify({
+        available: true
+    });
+    client.publish(`upnp/${device.description.UDN}`, msg);
+}
+
+function announceByeBye(device) {
+    let msg = JSON.stringify({
+        available: false
+    });
+    client.publish(`upnp/${device.description.UDN}`, msg);
+}
+
 function subscribe(path, usn, callback) {
     let eventUrl = url.parse(path);
     let sub = new Subscription(eventUrl.hostname, eventUrl.port, eventUrl.path, 10);
@@ -82,6 +96,7 @@ function subscribeAll(usn, services, callback) {
 
 function unsubscribeAll(usn, callback) {
     let device = devices.get(usn);
+    announceByeBye(device);
     devices.delete(usn);
     processed.delete(device.location);
     async.each(Array.from(device.subscriptions.keys()), (sid, iterCallback) => {
@@ -165,11 +180,12 @@ function processDiscovery(discovery, callback) {
             } else if (data) {
                 if (data.root) {
                     devices.set(discovery.usn, { location: discovery.location, description: data.root.device, subscriptions: new Map() });
+                    announceDiscovery(devices.get(discovery.usn));
                     let services = findServices(devices.get(discovery.usn).description, discovery.location, discovery.usn);
                     subscribeAll(discovery.usn, services, callback);
                 } else {
                     console.error(new Error(`Failed to parse description of ${discovery.server} at ${discovery.location}`));
-					callback();
+                    callback();
                 }
             } else {
                 console.error(new Error(`Failed to download description of ${discovery.server}: returned no data`));
