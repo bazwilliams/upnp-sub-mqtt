@@ -180,7 +180,7 @@ function processDiscovery(discovery, callback) {
             } else if (data) {
                 if (data.root) {
                     devices.set(discovery.usn, { location: discovery.location, description: data.root.device, subscriptions: new Map() });
-		    announceDiscovery(devices.get(discovery.usn));
+                    announceDiscovery(devices.get(discovery.usn));
                     let services = findServices(devices.get(discovery.usn).description, discovery.location, discovery.usn);
                     subscribeAll(discovery.usn, services, callback);
                 } else {
