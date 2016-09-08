@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/bazwilliams/upnp-sub-mqtt.svg?branch=master)](https://travis-ci.org/bazwilliams/upnp-sub-mqtt) [![](https://images.microbadger.com/badges/image/bazwilliams/upnp-sub-mqtt.svg)](http://microbadger.com/images/bazwilliams/upnp-sub-mqtt "Get your own image badge on microbadger.com")  [![](https://images.microbadger.com/badges/version/bazwilliams/upnp-sub-mqtt.svg)](http://microbadger.com/images/bazwilliams/upnp-sub-mqtt "Get your own version badge on microbadger.com")  [![](https://images.microbadger.com/badges/commit/bazwilliams/upnp-sub-mqtt.svg)](http://microbadger.com/images/bazwilliams/upnp-sub-mqtt "Get your own commit badge on microbadger.com")  [![](https://images.microbadger.com/badges/license/bazwilliams/upnp-sub-mqtt.svg)](http://microbadger.com/images/bazwilliams/upnp-sub-mqtt "Get your own license badge on microbadger.com")
+
 # upnp-sub-mqtt
 
 Scans for Upnp devices, subscribes to any events and publishes the events to an MQTT broker
