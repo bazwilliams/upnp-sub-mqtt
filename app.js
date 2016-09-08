@@ -267,7 +267,7 @@ ssdp.on('DeviceUnavailable', (discovery) => {
     });
 });
 
-let client = mqtt.connect(program.url || 'mqtt://localhost');
+let client = mqtt.connect(program.url || process.env.MQTTHOST || 'mqtt://localhost');
 console.log(`Connecting: ${client.options.href}`);
 
 client.on('connect', (connack) => {

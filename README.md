@@ -2,6 +2,14 @@
 
 Scans for Upnp devices, subscribes to any events and publishes the events to an MQTT broker
 
+## Docker
+
+```
+docker run --net=host -e MQTTHOST=<MQTT_HOST> bazwilliams/upnp-sub-mqtt
+```
+
+* MQTTHOST - Defaults to `mqtt://localhost`, set to your mqtt broker. 
+
 ## Install
 
 ```
