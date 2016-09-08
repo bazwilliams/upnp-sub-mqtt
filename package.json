@@ -11,6 +11,7 @@
     "upnp-sub-mqtt": "./app.js"
   },
   "scripts": {
+    "start": "node ./app.jsa",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Barry John Williams <barry@bjw.me.uk>",
@@ -25,10 +26,10 @@
   "dependencies": {
     "async": "^1.5.2",
     "commander": "^2.9.0",
-    "mqtt": "^1.6.3",
+    "mqtt": "^1.14.1",
     "node-upnp-ssdp": "^0.1.1",
     "node-upnp-subscription": "^1.0.1",
     "parsexmlresponse": "0.0.3",
-    "xml2js": "^0.4.15"
+    "xml2js": "^0.4.17"
   }
 }
