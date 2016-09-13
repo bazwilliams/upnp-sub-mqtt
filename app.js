@@ -8,10 +8,24 @@ let http = require('http');
 let url = require('url');
 let mqtt = require('mqtt');
 let async = require('async');
-
+let winston = require('winston');
 let devices = new Map();
 let processed = new Set();
 let subscriptionQueue = [];
+
+let log = new (winston.Logger)({
+    transports: [
+        new (winston.transports.Console)({
+            timestamp: function() {
+                return new Date().toISOString();
+            },
+            formatter: function(options) {
+                return options.timestamp() +' '+ options.level.toUpperCase() +' '+ (undefined !== options.message ? options.message : '') +
+                    (options.meta && Object.keys(options.meta).length ? '\n\t'+ JSON.stringify(options.meta) : '' );
+            }
+        })
+    ]
+});
 
 let program = require('commander');
 
@@ -71,7 +85,7 @@ function subscribe(path, usn, callback) {
         } else {
             sub.on('message', announceMessageFor(usn, data.sid));
             sub.once('error:resubscribe', (e) => {
-                console.error(`Failed to resubscribe: ${deviceDescription.friendlyName} ${e.error}`);
+                log.error(`Failed to resubscribe: ${deviceDescription.friendlyName} ${e.error}`);
                 unprocess(usn, () => {});
             });
             callback(null, {sid: data.sid, subscription: sub});
@@ -81,10 +95,10 @@ function subscribe(path, usn, callback) {
 
 function subscribeAll(usn, services, callback) {
     async.eachSeries(services, (service, iterCallback) => {
-        console.log(`Subscribing ${usn} (${service.serviceId})`);
+        log.info(`Subscribing ${usn} (${service.serviceId})`);
         subscribe(service.path, usn, (err, data) => {
             if (err) {
-                console.error(`Failed to setup subscription to ${service.path}`);
+                log.error(`Failed to setup subscription to ${service.path}`);
                 iterCallback(err);
             } else {
                 devices.get(usn).subscriptions.set(data.sid, { serviceId: service.serviceId, subscription: data.subscription });
@@ -101,7 +115,7 @@ function unsubscribeAll(usn, callback) {
     processed.delete(device.location);
     async.each(Array.from(device.subscriptions.keys()), (sid, iterCallback) => {
         let subscription = device.subscriptions.get(sid);
-        console.log(`Unsubscribing ${sid} (${subscription.serviceId})`);
+        log.info(`Unsubscribing ${sid} (${subscription.serviceId})`);
         let callbackInvoked = false;
         subscription.subscription.on('unsubscribed', (data) => {
             if (!callbackInvoked) {
@@ -113,9 +127,9 @@ function unsubscribeAll(usn, callback) {
             if (!callbackInvoked) {
                 callbackInvoked = true;
                 if (err) {
-                    console.error(err);
+                    log.error(err);
                 } else {
-                    console.error(`Unknown error unsubscribing from ${sid} (${subscription.serviceId})`);
+                    log.error(`Unknown error unsubscribing from ${sid} (${subscription.serviceId})`);
                 }
                 iterCallback();
             }
@@ -128,7 +142,7 @@ function unsubscribeAllSync(usn) {
     let device = devices.get(usn);
     for (let sid of device.subscriptions.keys()) {
         let subscription = device.subscriptions.get(sid);
-        console.log(`Unsubscribing ${sid} (${subscription.serviceId})`);
+        log.info(`Unsubscribing ${sid} (${subscription.serviceId})`);
         subscription.subscription.unsubscribe();
     }
 }
@@ -160,7 +174,7 @@ function unprocess(usn, callback) {
             if (err) {
                 callback(err);
             } else {
-                console.log(`Removing ${usn} from devices`);
+                log.info(`Removing ${usn} from devices`);
                 callback();
             }
         });
@@ -174,7 +188,7 @@ function processDiscovery(discovery, callback) {
         processed.add(discovery.location);
         http.get(discovery.location, parsexmlresponse((err, data) => {
             if (err) {
-                console.error(`${discovery.server}@${discovery.location} [${discovery.usn}]: ${err}`);
+                log.error(`${discovery.server}@${discovery.location} [${discovery.usn}]: ${err}`);
                 processed.delete(discovery.location);
                 callback(err);
             } else if (data) {
@@ -184,15 +198,15 @@ function processDiscovery(discovery, callback) {
                     let services = findServices(devices.get(discovery.usn).description, discovery.location, discovery.usn);
                     subscribeAll(discovery.usn, services, callback);
                 } else {
-                    console.error(new Error(`Failed to parse description of ${discovery.server} at ${discovery.location}`));
+                    log.error(new Error(`Failed to parse description of ${discovery.server} at ${discovery.location}`));
                     callback();
                 }
             } else {
-                console.error(new Error(`Failed to download description of ${discovery.server}: returned no data`));
+                log.error(new Error(`Failed to download description of ${discovery.server}: returned no data`));
                 callback();
             }
         })).on('error', (err) => {
-            console.error(`${discovery.server}@${discovery.location} [${discovery.usn}]: ${err}`);
+            log.error(`${discovery.server}@${discovery.location} [${discovery.usn}]: ${err}`);
             processed.delete(discovery.location);
             callback(err);
         });
@@ -206,8 +220,8 @@ function processQueue() {
     if (discoveredDevice) {
         processDiscovery(discoveredDevice, (err, data) => {
             if (err) {
-                console.error(err);
-                console.log('Rolling back subscriptions');
+                log.error(err);
+                log.warn('Rolling back subscriptions');
                 unprocess(discoveredDevice.usn, (err, data) => {
                     subscriptionQueue.push(discoveredDevice);
                     processQueue();
@@ -229,7 +243,7 @@ function unsubscribeAllDevices() {
 }
 
 function handleException(e) {
-    console.error(e.stack);
+    log.error(e.stack);
     unsubscribeAllDevices();
 }
 
@@ -250,28 +264,28 @@ ssdp.on('DeviceAvailable', (discovery) => {
 ssdp.on('DeviceUpdate', (discovery) => {
     unprocess(discovery.usn, (err) => {
         if (err) {
-            console.error(`Error unprocessing after device update ${discovery.usn}: ${err}`)
+            log.error(`Error unprocessing after device update ${discovery.usn}: ${err}`)
         }
     });
     processDiscovery(discovery, (err) => {
         if (err) {
-            console.error(`Error processing ${discovery.usn}: ${err}`)
+            log.error(`Error processing ${discovery.usn}: ${err}`)
         }
     });
 });
 ssdp.on('DeviceUnavailable', (discovery) => {
     unprocess(discovery.usn, (err) => {
         if (err) {
-            console.error(`Error unprocessing after device unavailable: ${discovery.usn}: ${err}`)
+            log.error(`Error unprocessing after device unavailable: ${discovery.usn}: ${err}`)
         }
     });
 });
 
 let client = mqtt.connect(program.url || process.env.MQTTHOST || 'mqtt://localhost');
-console.log(`Connecting: ${client.options.href}`);
+log.info(`Connecting: ${client.options.href}`);
 
 client.on('connect', (connack) => {
-    console.log('Connected');
+    log.info('Connected');
     if (!connack.sessionPresent) {
         setTimeout(processQueue, 1000);
         ssdp.mSearch();
@@ -279,5 +293,5 @@ client.on('connect', (connack) => {
 });
 
 client.on('error', (err) => {
-    console.error(`MQTT Client Error: ${err}`);
+    log.error(`MQTT Client Error: ${err}`);
 })

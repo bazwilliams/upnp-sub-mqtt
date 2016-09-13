@@ -30,6 +30,7 @@
     "node-upnp-ssdp": "^0.1.1",
     "node-upnp-subscription": "^1.0.3",
     "parsexmlresponse": "0.0.3",
+    "winston": "^2.2.0",
     "xml2js": "^0.4.17"
   }
 }
