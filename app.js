@@ -76,7 +76,7 @@ function announceByeBye(device) {
 
 function subscribe(path, usn, callback) {
     let eventUrl = url.parse(path);
-    let sub = new Subscription(eventUrl.hostname, eventUrl.port, eventUrl.path, 10);
+    let sub = new Subscription(eventUrl.hostname, eventUrl.port, eventUrl.path, 600);
     let deviceDescription = devices.get(usn).description;
     sub.on('error', callback);
     sub.on('subscribed', (data) => {
@@ -227,7 +227,7 @@ function processQueue() {
                 log.error(err);
                 log.warn('Rolling back subscriptions');
                 unprocess(discoveredDevice.usn, (err, data) => {
-                    subscriptionQueue.push(discoveredDevice);
+                    setTimeout(() => subscriptionQueue.push(discoveredDevice), 60000);
                     processQueue();
                 });
             } else {
