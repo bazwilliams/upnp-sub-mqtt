@@ -86,7 +86,7 @@ function subscribe(path, usn, callback) {
             sub.on('message', announceMessageFor(usn, data.sid));
             sub.once('error:resubscribe', (e) => {
                 log.error(`Failed to resubscribe: ${deviceDescription.friendlyName} ${e.error}`);
-                unprocess(usn, () => {});
+                unsubscribe(sub, () => subscribe(path, usn, callback));
             });
             callback(null, {sid: data.sid, subscription: sub});
         }
@@ -108,6 +108,29 @@ function subscribeAll(usn, services, callback) {
     }, callback);
 }
 
+function unsubscribe(subscription, iterCallback) {
+    log.info(`Unsubscribing ${sid} (${subscription.serviceId})`);
+    let callbackInvoked = false;
+    subscription.subscription.on('unsubscribed', (data) => {
+        if (!callbackInvoked) {
+            callbackInvoked = true;
+            iterCallback();
+        }
+    });
+    subscription.subscription.on('error:unsubscribe', (err) => {
+        if (!callbackInvoked) {
+            callbackInvoked = true;
+            if (err) {
+                log.error(err);
+            } else {
+                log.error(`Unknown error unsubscribing from ${sid} (${subscription.serviceId})`);
+            }
+            iterCallback();
+        }
+    });
+    subscription.subscription.unsubscribe();
+}
+
 function unsubscribeAll(usn, callback) {
     let device = devices.get(usn);
     announceByeBye(device);
@@ -115,26 +138,7 @@ function unsubscribeAll(usn, callback) {
     processed.delete(device.location);
     async.each(Array.from(device.subscriptions.keys()), (sid, iterCallback) => {
         let subscription = device.subscriptions.get(sid);
-        log.info(`Unsubscribing ${sid} (${subscription.serviceId})`);
-        let callbackInvoked = false;
-        subscription.subscription.on('unsubscribed', (data) => {
-            if (!callbackInvoked) {
-                callbackInvoked = true;
-                iterCallback();
-            }
-        });
-        subscription.subscription.on('error:unsubscribe', (err) => {
-            if (!callbackInvoked) {
-                callbackInvoked = true;
-                if (err) {
-                    log.error(err);
-                } else {
-                    log.error(`Unknown error unsubscribing from ${sid} (${subscription.serviceId})`);
-                }
-                iterCallback();
-            }
-        });
-        subscription.subscription.unsubscribe();
+        unsubscribe(subscription, iterCallback);
     }, callback);
 }
 
