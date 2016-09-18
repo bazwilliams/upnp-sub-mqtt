@@ -109,7 +109,6 @@ function subscribeAll(usn, services, callback) {
 }
 
 function unsubscribe(subscription, iterCallback) {
-    log.info(`Unsubscribing ${sid} (${subscription.serviceId})`);
     let callbackInvoked = false;
     subscription.subscription.on('unsubscribed', (data) => {
         if (!callbackInvoked) {
@@ -123,7 +122,7 @@ function unsubscribe(subscription, iterCallback) {
             if (err) {
                 log.error(err);
             } else {
-                log.error(`Unknown error unsubscribing from ${sid} (${subscription.serviceId})`);
+                log.error(`Unknown error unsubscribing ${subscription.serviceId}`);
             }
             iterCallback();
         }
@@ -138,6 +137,7 @@ function unsubscribeAll(usn, callback) {
     processed.delete(device.location);
     async.each(Array.from(device.subscriptions.keys()), (sid, iterCallback) => {
         let subscription = device.subscriptions.get(sid);
+        log.info(`Unsubscribing ${sid} (${subscription.serviceId})`);
         unsubscribe(subscription, iterCallback);
     }, callback);
 }
