@@ -28,8 +28,8 @@
     "commander": "^2.9.0",
     "mqtt": "^1.14.1",
     "node-upnp-ssdp": "^0.1.1",
-    "node-upnp-subscription": "^1.0.3",
-    "parsexmlresponse": "0.0.3",
+    "node-upnp-subscription": "^1.0.5",
+    "parsexmlresponse": "0.0.5",
     "winston": "^2.2.0",
     "xml2js": "^0.4.17"
   }
