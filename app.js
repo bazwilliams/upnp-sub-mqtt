@@ -190,7 +190,16 @@ function unprocess(usn, callback) {
 function processDiscovery(discovery, callback) {
     if (!processed.has(discovery.location)) {
         processed.add(discovery.location);
-        http.get(discovery.location, parsexmlresponse((err, data) => {
+        let descriptorUrl = url.parse(discovery.location);
+        let request = {
+                hostname:descriptorUrl.hostname,
+                port: descriptorUrl.port,
+                path: descriptorUrl.path,
+                headers: {
+                        'User-Agent': 'SKY_skyplus'
+                },
+        };
+        http.get(request, parsexmlresponse((err, data) => {
             if (err) {
                 log.error(`${discovery.server}@${discovery.location} [${discovery.usn}]: ${err}`);
                 processed.delete(discovery.location);
