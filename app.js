@@ -294,7 +294,10 @@ ssdp.on('DeviceUnavailable', (discovery) => {
     });
 });
 
-let client = mqtt.connect(program.url || process.env.MQTTHOST || 'mqtt://localhost');
+let client = mqtt.connect(program.url || process.env.MQTTHOST || 'mqtt://localhost', {
+    'username': process.env.MQTTUSERNAME || '',
+    'password': process.env.MQTTPASSWORD || ''
+});
 log.info(`Connecting: ${client.options.href}`);
 
 client.on('connect', (connack) => {
